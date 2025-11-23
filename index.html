@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Remote Access</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { margin: 0; padding: 20px; background: #1a1a1a; color: white; font-family: Arial; }
+        #login { text-align: center; margin-top: 100px; }
+        #remote { display: none; }
+        #password { padding: 10px; margin: 10px; width: 200px; }
+        button { padding: 10px 20px; background: #007acc; color: white; border: none; cursor: pointer; }
+        #screen { width: 100%; max-width: 1000px; border: 2px solid #444; }
+        .controls { margin: 10px 0; }
+        .error { color: red; margin: 10px; }
+    </style>
+</head>
+<body>
+    <div id="login">
+        <h2>Remote Desktop Access</h2>
+        <input type="password" id="password" placeholder="Enter password">
+        <button onclick="checkPassword()">Connect</button>
+        <div id="error" class="error"></div>
+    </div>
+
+    <div id="remote">
+        <h2>Remote Desktop - Live View</h2>
+        <div class="controls">
+            <button onclick="fullscreen()">Fullscreen</button>
+            <button onclick="disconnect()">Disconnect</button>
+        </div>
+        <img id="screen" src="" alt="Remote screen">
+    </div>
+
+    <script>
+        let ws;
+        const password = "shaman666";
+
+        function checkPassword() {
+            const input = document.getElementById('password').value;
+            if (input === password) {
+                document.getElementById('login').style.display = 'none';
+                document.getElementById('remote').style.display = 'block';
+                connect();
+            } else {
+                document.getElementById('error').textContent = 'Invalid password';
+            }
+        }
+
+        function connect() {
+            ws = new WebSocket('wss://your-app.netlify.app/.netlify/functions/ws');
+            
+            ws.onopen = () => {
+                console.log('Connected to remote desktop');
+                document.getElementById('screen').style.borderColor = 'green';
+            };
+            
+            ws.onmessage = (event) => {
+                if (event.data instanceof Blob) {
+                    const url = URL.createObjectURL(event.data);
+                    document.getElementById('screen').src = url;
+                }
+            };
+
+            // Управление мышью
+            document.getElementById('screen').addEventListener('click', (e) => {
+                const rect = e.target.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * (e.target.naturalWidth / rect.width);
+                const y = (e.clientY - rect.top) * (e.target.naturalHeight / rect.height);
+                ws.send(`MOUSE|${Math.round(x)}|${Math.round(y)}`);
+                ws.send('CLICK|');
+            });
+
+            document.getElementById('screen').addEventListener('mousemove', (e) => {
+                const rect = e.target.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * (e.target.naturalWidth / rect.width);
+                const y = (e.clientY - rect.top) * (e.target.naturalHeight / rect.height);
+                ws.send(`MOUSE|${Math.round(x)}|${Math.round(y)}`);
+            });
+
+            // Управление клавиатурой
+            document.addEventListener('keydown', (e) => {
+                ws.send(`KEY|${e.key}`);
+            });
+        }
+
+        function fullscreen() {
+            const elem = document.getElementById('screen');
+            if (elem.requestFullscreen) elem.requestFullscreen();
+        }
+
+        function disconnect() {
+            if (ws) ws.close();
+            location.reload();
+        }
+    </script>
+</body>
+</html>
