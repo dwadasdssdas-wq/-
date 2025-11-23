@@ -8,7 +8,7 @@ wss.on('connection', function connection(ws) {
     console.log('Client connected');
     
     ws.on('message', function message(data) {
-        // Пересылаем команды всем клиентам
+        // Пересылаем команды между клиентами
         connections.forEach(client => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
                 client.send(data);
@@ -25,7 +25,7 @@ wss.on('connection', function connection(ws) {
 exports.handler = async (event, context) => {
     if (event.requestContext) {
         try {
-            const { upgrade, setStatusCode, setBody, end } = event.requestContext;
+            const { upgrade } = event.requestContext;
             if (upgrade) {
                 wss.handleUpgrade(event, event.requestContext.socket, 
                     event.requestContext.head, (ws) => {
@@ -34,7 +34,7 @@ exports.handler = async (event, context) => {
                 return { statusCode: 101 };
             }
         } catch (err) {
-            return { statusCode: 500, body: 'Error: ' + err.message };
+            return { statusCode: 500, body: 'Error' };
         }
     }
     return { statusCode: 400, body: 'Not WebSocket' };

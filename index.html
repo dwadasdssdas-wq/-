@@ -1,97 +1,152 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Remote Access</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Remote Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; padding: 20px; background: #1a1a1a; color: white; font-family: Arial; }
-        #login { text-align: center; margin-top: 100px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; color: white; font-family: Arial; overflow: hidden; height: 100vh; }
+        
+        #auth { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #111; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; z-index: 1000; 
+        }
+        
+        #auth input { 
+            padding: 15px; margin: 10px; width: 80%; max-width: 300px; 
+            border: 1px solid #333; background: #222; color: white; border-radius: 5px;
+        }
+        
+        #auth button { 
+            padding: 15px 30px; background: #007acc; color: white; 
+            border: none; border-radius: 5px; cursor: pointer; font-size: 16px;
+        }
+        
         #remote { display: none; }
-        #password { padding: 10px; margin: 10px; width: 200px; }
-        button { padding: 10px 20px; background: #007acc; color: white; border: none; cursor: pointer; }
-        #screen { width: 100%; max-width: 1000px; border: 2px solid #444; }
-        .controls { margin: 10px 0; }
-        .error { color: red; margin: 10px; }
+        #screen { 
+            width: 100%; height: 100vh; object-fit: contain; 
+            background: #000; touch-action: none;
+        }
+        
+        .controls {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 100;
+        }
+        
+        .control-btn {
+            padding: 12px 20px; background: rgba(0,122,204,0.8); color: white;
+            border: none; border-radius: 8px; font-size: 14px;
+        }
+        
+        .status {
+            position: fixed; top: 10px; right: 10px; padding: 5px 10px;
+            background: rgba(0,0,0,0.7); border-radius: 5px; font-size: 12px;
+        }
     </style>
 </head>
 <body>
-    <div id="login">
-        <h2>Remote Desktop Access</h2>
+    <div id="auth">
+        <h2>🔒 Remote Access</h2>
         <input type="password" id="password" placeholder="Enter password">
-        <button onclick="checkPassword()">Connect</button>
-        <div id="error" class="error"></div>
+        <button onclick="checkAuth()">Connect</button>
+        <div id="authError" style="color: red; margin-top: 10px;"></div>
     </div>
 
     <div id="remote">
-        <h2>Remote Desktop - Live View</h2>
-        <div class="controls">
-            <button onclick="fullscreen()">Fullscreen</button>
-            <button onclick="disconnect()">Disconnect</button>
-        </div>
         <img id="screen" src="" alt="Remote screen">
+        <div class="status" id="status">Disconnected</div>
+        <div class="controls">
+            <button class="control-btn" onclick="sendClick()">Tap</button>
+            <button class="control-btn" onclick="sendRightClick()">Right</button>
+            <button class="control-btn" onclick="sendKey('{ENTER}')">Enter</button>
+            <button class="control-btn" onclick="sendKey('{ESC}')">ESC</button>
+        </div>
     </div>
 
     <script>
-        let ws;
-        const password = "shaman666";
-
-        function checkPassword() {
+        const PASSWORD = "shaman666";
+        let ws = null;
+        let screen = document.getElementById('screen');
+        let status = document.getElementById('status');
+        
+        function checkAuth() {
             const input = document.getElementById('password').value;
-            if (input === password) {
-                document.getElementById('login').style.display = 'none';
+            if (input === PASSWORD) {
+                document.getElementById('auth').style.display = 'none';
                 document.getElementById('remote').style.display = 'block';
                 connect();
             } else {
-                document.getElementById('error').textContent = 'Invalid password';
+                document.getElementById('authError').textContent = 'Wrong password';
             }
         }
-
+        
         function connect() {
-            ws = new WebSocket('wss://your-app.netlify.app/.netlify/functions/ws');
+            // Замени YOUR-APP на твой Netlify app name
+            ws = new WebSocket('wss://YOUR-APP.netlify.app/.netlify/functions/ws');
             
             ws.onopen = () => {
-                console.log('Connected to remote desktop');
-                document.getElementById('screen').style.borderColor = 'green';
+                status.textContent = 'Connected';
+                status.style.color = 'green';
             };
             
             ws.onmessage = (event) => {
                 if (event.data instanceof Blob) {
                     const url = URL.createObjectURL(event.data);
-                    document.getElementById('screen').src = url;
+                    screen.src = url;
                 }
             };
-
-            // Управление мышью
-            document.getElementById('screen').addEventListener('click', (e) => {
-                const rect = e.target.getBoundingClientRect();
-                const x = (e.clientX - rect.left) * (e.target.naturalWidth / rect.width);
-                const y = (e.clientY - rect.top) * (e.target.naturalHeight / rect.height);
-                ws.send(`MOUSE|${Math.round(x)}|${Math.round(y)}`);
+            
+            ws.onclose = () => {
+                status.textContent = 'Disconnected';
+                status.style.color = 'red';
+                setTimeout(connect, 3000);
+            };
+            
+            // Управление касаниями
+            screen.addEventListener('touchstart', handleTouch);
+            screen.addEventListener('touchmove', handleTouch);
+            screen.addEventListener('touchend', handleTouchEnd);
+        }
+        
+        function handleTouch(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = screen.getBoundingClientRect();
+            
+            const scaleX = screen.naturalWidth / rect.width;
+            const scaleY = screen.naturalHeight / rect.height;
+            
+            const x = (touch.clientX - rect.left) * scaleX;
+            const y = (touch.clientY - rect.top) * scaleY;
+            
+            if (ws?.readyState === WebSocket.OPEN) {
+                ws.send(`MOVE|${Math.round(x)}|${Math.round(y)}`);
+            }
+        }
+        
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            if (ws?.readyState === WebSocket.OPEN) {
                 ws.send('CLICK|');
-            });
-
-            document.getElementById('screen').addEventListener('mousemove', (e) => {
-                const rect = e.target.getBoundingClientRect();
-                const x = (e.clientX - rect.left) * (e.target.naturalWidth / rect.width);
-                const y = (e.clientY - rect.top) * (e.target.naturalHeight / rect.height);
-                ws.send(`MOUSE|${Math.round(x)}|${Math.round(y)}`);
-            });
-
-            // Управление клавиатурой
-            document.addEventListener('keydown', (e) => {
-                ws.send(`KEY|${e.key}`);
-            });
+            }
         }
-
-        function fullscreen() {
-            const elem = document.getElementById('screen');
-            if (elem.requestFullscreen) elem.requestFullscreen();
+        
+        function sendClick() {
+            if (ws) ws.send('CLICK|');
         }
-
-        function disconnect() {
-            if (ws) ws.close();
-            location.reload();
+        
+        function sendRightClick() {
+            if (ws) ws.send('RIGHT|');
         }
+        
+        function sendKey(key) {
+            if (ws) ws.send(`KEY|${key}`);
+        }
+        
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') checkAuth();
+        });
     </script>
 </body>
 </html>
