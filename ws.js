@@ -5,7 +5,7 @@ const connections = new Set();
 
 wss.on('connection', function connection(ws) {
     connections.add(ws);
-    console.log('Client connected');
+    console.log('✅ Client connected - Total:', connections.size);
     
     ws.on('message', function message(data) {
         // Пересылаем команды между клиентами
@@ -18,7 +18,7 @@ wss.on('connection', function connection(ws) {
 
     ws.on('close', function() {
         connections.delete(ws);
-        console.log('Client disconnected');
+        console.log('❌ Client disconnected - Remaining:', connections.size);
     });
 });
 
@@ -34,6 +34,7 @@ exports.handler = async (event, context) => {
                 return { statusCode: 101 };
             }
         } catch (err) {
+            console.error('WebSocket error:', err);
             return { statusCode: 500, body: 'Error' };
         }
     }
